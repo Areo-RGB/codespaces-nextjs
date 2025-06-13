@@ -56,6 +56,11 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     };
   }, [currentVideo]);
 
+  useEffect(() => {
+    // Show title overlay on initial load
+    showTitleTemporarily();
+  }, []);
+
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
       await containerRef.current?.requestFullscreen();
