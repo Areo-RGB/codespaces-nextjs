@@ -17,18 +17,23 @@ function Home() {
     },
     {
       id: 3,
+      title: "UE1 Video",
+      src: "https://data4.fra1.cdn.digitaloceanspaces.com/ue/ue1.mp4"
+    },
+    {
+      id: 4,
       title: "Sample Video 1",
       src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
       poster: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg"
     },
     {
-      id: 4,
+      id: 5,
       title: "Sample Video 2", 
       src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
       poster: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg"
     },
     {
-      id: 5,
+      id: 6,
       title: "Sample Video 3",
       src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
       poster: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg"

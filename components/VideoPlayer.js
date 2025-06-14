@@ -15,11 +15,13 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
   const [timerActive, setTimerActive] = useState(false);
   const [showVideoSelection, setShowVideoSelection] = useState(false);
   const [showTitleOverlay, setShowTitleOverlay] = useState(false);
+  const [extractedThumbnails, setExtractedThumbnails] = useState({});
   const videoRef = useRef(null);
   const videoRef2 = useRef(null);
   const containerRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const titleTimeoutRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const currentVideo = videos[currentIndex];
   const secondVideo = currentIndex < videos.length - 1 ? videos[currentIndex + 1] : videos[0];
@@ -60,6 +62,15 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     // Show title overlay on initial load
     showTitleTemporarily();
   }, []);
+
+  useEffect(() => {
+    // Extract thumbnails for videos without posters
+    videos.forEach(video => {
+      if (!video.poster && !extractedThumbnails[video.src]) {
+        extractThumbnail(video.src);
+      }
+    });
+  }, [videos, extractedThumbnails]);
 
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
@@ -139,6 +150,108 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const extractThumbnail = (videoSrc) => {
+    return new Promise((resolve) => {
+      if (typeof document === 'undefined') {
+        resolve(null);
+        return;
+      }
+      
+      if (extractedThumbnails[videoSrc]) {
+        resolve(extractedThumbnails[videoSrc]);
+        return;
+      }
+
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      
+      video.onloadedmetadata = () => {
+        // Seek to frame 5 (assuming 30fps, frame 5 = ~0.167 seconds)
+        video.currentTime = 0.167;
+      };
+
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+          
+          setExtractedThumbnails(prev => ({
+            ...prev,
+            [videoSrc]: thumbnailUrl
+          }));
+          
+          resolve(thumbnailUrl);
+        } catch (error) {
+          console.log('Could not extract thumbnail:', error);
+          resolve(null);
+        }
+      };
+
+      video.onerror = () => {
+        console.log('Error loading video for thumbnail extraction');
+        resolve(null);
+      };
+
+      video.src = videoSrc;
+    });
+  };
+
+  const createPlaceholderImage = (text, color = '#333333') => {
+    if (typeof document === 'undefined') {
+      return null; // Return null during SSR
+    }
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = 1920;
+    canvas.height = 1080;
+    
+    // Fill background
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 72px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const maxWidth = canvas.width - 100;
+    let fontSize = 72;
+    
+    // Adjust font size to fit
+    do {
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      fontSize -= 2;
+    } while (ctx.measureText(text).width > maxWidth && fontSize > 20);
+    
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    
+    return canvas.toDataURL('image/jpeg', 0.8);
+  };
+
+  const getThumbnail = (video) => {
+    if (video.poster) {
+      return video.poster;
+    }
+    
+    if (extractedThumbnails[video.src]) {
+      return extractedThumbnails[video.src];
+    }
+    
+    // Create local placeholder (only in browser)
+    const placeholder = createPlaceholderImage(video.title);
+    return placeholder || ''; // Return empty string during SSR
   };
 
   const toggleTimer = () => {
@@ -225,7 +338,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={handleVideoEnd}
-          poster={currentVideo.poster}
+          poster={getThumbnail(currentVideo)}
           playsInline
         />
         
@@ -234,7 +347,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
             ref={videoRef2}
             src={secondVideo.src}
             className={styles.video}
-            poster={secondVideo.poster}
+            poster={getThumbnail(secondVideo)}
             playsInline
           />
         )}
@@ -259,27 +372,27 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
         
         <div className={styles.controlButtons}>
           <button onClick={prevVideo} className={styles.controlButton}>
-            ⏮
+            <i className="fas fa-step-backward"></i>
           </button>
           
           <button onClick={togglePlay} className={styles.controlButton}>
-            {isPlaying ? '⏸' : '▶'}
+            <i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
           </button>
           
           <button onClick={nextVideo} className={styles.controlButton}>
-            ⏭
+            <i className="fas fa-step-forward"></i>
           </button>
           
           <button onClick={toggleDualMode} className={styles.controlButton}>
-            {isDualMode ? '1️⃣' : '2️⃣'}
+            <i className={`fas ${isDualMode ? 'fa-square' : 'fa-th-large'}`}></i>
           </button>
           
           <button onClick={toggleTimer} className={styles.controlButton}>
-            ⏱️
+            <i className="fas fa-stopwatch"></i>
           </button>
           
           <button onClick={toggleVideoSelection} className={styles.controlButton}>
-            📽️
+            <i className="fas fa-film"></i>
           </button>
           
           <div className={styles.speedControl}>
@@ -306,7 +419,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
           </div>
           
           <button onClick={toggleFullscreen} className={styles.controlButton}>
-            {isFullscreen ? '⊟' : '⊞'}
+            <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
           </button>
         </div>
       </div>
@@ -323,7 +436,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
             onClick={toggleTimer}
             className={styles.closeButton}
           >
-            ✕
+            <i className="fas fa-times"></i>
           </button>
           <div className={styles.timerContainer}>
             <div className={styles.timerDisplay}>
@@ -332,7 +445,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
                 className={styles.timeAdjustButton}
                 disabled={timerActive}
               >
-                −
+                <i className="fas fa-minus"></i>
               </button>
               <span className={styles.timeNumber}>{timerSeconds}</span>
               <button 
@@ -340,7 +453,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
                 className={styles.timeAdjustButton}
                 disabled={timerActive}
               >
-                +
+                <i className="fas fa-plus"></i>
               </button>
             </div>
             <div className={styles.timerControls}>
@@ -367,7 +480,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
             onClick={toggleVideoSelection}
             className={styles.closeButton}
           >
-            ✕
+            <i className="fas fa-times"></i>
           </button>
           <div className={styles.videoSelectionContainer}>
             <h2 className={styles.selectionTitle}>Select Video</h2>
@@ -379,10 +492,12 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
                   className={`${styles.videoCard} ${index === currentIndex ? styles.activeCard : ''}`}
                 >
                   <div className={styles.videoThumbnail}>
-                    {video.poster ? (
-                      <img src={video.poster} alt={video.title} />
+                    {video.poster || extractedThumbnails[video.src] ? (
+                      <img src={getThumbnail(video)} alt={video.title} />
                     ) : (
-                      <div className={styles.defaultThumbnail}>🎬</div>
+                      <div className={styles.defaultThumbnail}>
+                        <i className="fas fa-video"></i>
+                      </div>
                     )}
                   </div>
                   <div className={styles.videoInfo}>
@@ -390,7 +505,9 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
                     <p>Video {index + 1}</p>
                   </div>
                   {index === currentIndex && (
-                    <div className={styles.playingIndicator}>▶ Playing</div>
+                    <div className={styles.playingIndicator}>
+                      <i className="fas fa-play"></i> Playing
+                    </div>
                   )}
                 </div>
               ))}
