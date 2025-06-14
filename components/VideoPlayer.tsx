@@ -1,7 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './VideoPlayer.module.css';
 
-export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChange }) {
+interface Video {
+  id: number;
+  title: string;
+  src: string;
+  poster?: string;
+}
+
+interface VideoPlayerProps {
+  videos: Video[];
+  currentIndex: number;
+  onVideoChange: (index: number) => void;
+}
+
+export default function VideoPlayer({
+  videos = [],
+  currentIndex = 0,
+  onVideoChange,
+}: VideoPlayerProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -15,16 +32,18 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
   const [timerActive, setTimerActive] = useState(false);
   const [showVideoSelection, setShowVideoSelection] = useState(false);
   const [showTitleOverlay, setShowTitleOverlay] = useState(false);
-  const [extractedThumbnails, setExtractedThumbnails] = useState({});
-  const videoRef = useRef(null);
-  const videoRef2 = useRef(null);
-  const containerRef = useRef(null);
-  const timerIntervalRef = useRef(null);
-  const titleTimeoutRef = useRef(null);
-  const canvasRef = useRef(null);
+  const [extractedThumbnails, setExtractedThumbnails] = useState<
+    Record<string, string>
+  >({});
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef2 = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const titleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentVideo = videos[currentIndex];
-  const secondVideo = currentIndex < videos.length - 1 ? videos[currentIndex + 1] : videos[0];
+  const secondVideo =
+    currentIndex < videos.length - 1 ? videos[currentIndex + 1] : videos[0];
   const speedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
   useEffect(() => {
@@ -33,7 +52,8 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    return () =>
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   useEffect(() => {
@@ -63,6 +83,67 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     showTitleTemporarily();
   }, []);
 
+  const extractThumbnail = useCallback(
+    (videoSrc: string) => {
+      return new Promise<string | null>(resolve => {
+        if (typeof document === 'undefined') {
+          resolve(null);
+          return;
+        }
+
+        if (extractedThumbnails[videoSrc]) {
+          resolve(extractedThumbnails[videoSrc]);
+          return;
+        }
+
+        const video = document.createElement('video');
+        video.crossOrigin = 'anonymous';
+        video.muted = true;
+
+        video.onloadedmetadata = () => {
+          // Seek to frame 5 (assuming 30fps, frame 5 = ~0.167 seconds)
+          video.currentTime = 0.167;
+        };
+
+        video.onseeked = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            if (!ctx) {
+              resolve(null);
+              return;
+            }
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+            setExtractedThumbnails(prev => ({
+              ...prev,
+              [videoSrc]: thumbnailUrl,
+            }));
+
+            resolve(thumbnailUrl);
+          } catch (error) {
+            console.log('Could not extract thumbnail:', error);
+            resolve(null);
+          }
+        };
+
+        video.onerror = () => {
+          console.log('Error loading video for thumbnail extraction');
+          resolve(null);
+        };
+
+        video.src = videoSrc;
+      });
+    },
+    [extractedThumbnails]
+  );
+
   useEffect(() => {
     // Extract thumbnails for videos without posters
     videos.forEach(video => {
@@ -70,7 +151,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
         extractThumbnail(video.src);
       }
     });
-  }, [videos, extractedThumbnails]);
+  }, [videos, extractedThumbnails, extractThumbnail]);
 
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
@@ -83,7 +164,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
   const togglePlay = () => {
     const video1 = videoRef.current;
     const video2 = videoRef2.current;
-    
+
     if (isPlaying) {
       video1?.pause();
       if (isDualMode) video2?.pause();
@@ -121,7 +202,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     setIsPlaying(false);
   };
 
-  const changeSpeed = (speed) => {
+  const changeSpeed = (speed: number) => {
     setPlaybackSpeed(speed);
     if (videoRef.current) {
       videoRef.current.playbackRate = speed;
@@ -132,11 +213,11 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     setShowSpeedMenu(false);
   };
 
-  const handleSeek = (e) => {
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const video1 = videoRef.current;
     const video2 = videoRef2.current;
     if (!video1) return;
-    
+
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = (clickX / rect.width) * video1.duration;
@@ -146,112 +227,62 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     }
   };
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const extractThumbnail = (videoSrc) => {
-    return new Promise((resolve) => {
-      if (typeof document === 'undefined') {
-        resolve(null);
-        return;
-      }
-      
-      if (extractedThumbnails[videoSrc]) {
-        resolve(extractedThumbnails[videoSrc]);
-        return;
-      }
-
-      const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
-      video.muted = true;
-      
-      video.onloadedmetadata = () => {
-        // Seek to frame 5 (assuming 30fps, frame 5 = ~0.167 seconds)
-        video.currentTime = 0.167;
-      };
-
-      video.onseeked = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
-          
-          setExtractedThumbnails(prev => ({
-            ...prev,
-            [videoSrc]: thumbnailUrl
-          }));
-          
-          resolve(thumbnailUrl);
-        } catch (error) {
-          console.log('Could not extract thumbnail:', error);
-          resolve(null);
-        }
-      };
-
-      video.onerror = () => {
-        console.log('Error loading video for thumbnail extraction');
-        resolve(null);
-      };
-
-      video.src = videoSrc;
-    });
-  };
-
-  const createPlaceholderImage = (text, color = '#333333') => {
+  const createPlaceholderImage = (text: string, color = '#333333') => {
     if (typeof document === 'undefined') {
       return null; // Return null during SSR
     }
-    
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    
+
+    if (!ctx) {
+      return null;
+    }
+
     canvas.width = 1920;
     canvas.height = 1080;
-    
+
     // Fill background
     ctx.fillStyle = color;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     // Add text
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 72px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
+
     const maxWidth = canvas.width - 100;
     let fontSize = 72;
-    
+
     // Adjust font size to fit
     do {
       ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       fontSize -= 2;
     } while (ctx.measureText(text).width > maxWidth && fontSize > 20);
-    
+
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-    
+
     return canvas.toDataURL('image/jpeg', 0.8);
   };
 
-  const getThumbnail = (video) => {
+  const getThumbnail = (video: Video) => {
     if (video.poster) {
       return video.poster;
     }
-    
+
     if (extractedThumbnails[video.src]) {
       return extractedThumbnails[video.src];
     }
-    
-    // Create local placeholder (only in browser)
-    const placeholder = createPlaceholderImage(video.title);
-    return placeholder || ''; // Return empty string during SSR
+
+    // Return empty string for consistent SSR/client rendering
+    return '';
   };
 
   const toggleTimer = () => {
@@ -266,7 +297,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
 
   const startTimer = () => {
     if (timerIntervalRef.current) return;
-    
+
     setTimerActive(true);
     timerIntervalRef.current = setInterval(() => {
       setTimerSeconds(prev => {
@@ -304,7 +335,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     setShowVideoSelection(!showVideoSelection);
   };
 
-  const selectVideo = (index) => {
+  const selectVideo = (index: number) => {
     onVideoChange?.(index);
     setShowVideoSelection(false);
     showTitleTemporarily();
@@ -314,7 +345,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
     if (titleTimeoutRef.current) {
       clearTimeout(titleTimeoutRef.current);
     }
-    
+
     setShowTitleOverlay(true);
     titleTimeoutRef.current = setTimeout(() => {
       setShowTitleOverlay(false);
@@ -326,11 +357,15 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`${styles.container} ${isFullscreen ? styles.fullscreen : ''} ${isDualMode ? styles.dualMode : ''}`}
     >
-      <div className={isDualMode ? styles.videoContainer : styles.singleVideoContainer}>
+      <div
+        className={
+          isDualMode ? styles.videoContainer : styles.singleVideoContainer
+        }
+      >
         <video
           ref={videoRef}
           src={currentVideo.src}
@@ -341,7 +376,7 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
           poster={getThumbnail(currentVideo)}
           playsInline
         />
-        
+
         {isDualMode && (
           <video
             ref={videoRef2}
@@ -352,14 +387,11 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
           />
         )}
       </div>
-      
+
       <div className={styles.customControls}>
         <div className={styles.progressContainer}>
-          <div 
-            className={styles.progressBar}
-            onClick={handleSeek}
-          >
-            <div 
+          <div className={styles.progressBar} onClick={handleSeek}>
+            <div
               className={styles.progressFilled}
               style={{ width: `${progress}%` }}
             />
@@ -369,87 +401,105 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
             <span>{formatTime(duration)}</span>
           </div>
         </div>
-        
+
         <div className={styles.controlButtons}>
-          <button onClick={prevVideo} className={styles.controlButton}>
-            <i className="fas fa-step-backward"></i>
-          </button>
-          
-          <button onClick={togglePlay} className={styles.controlButton}>
-            <i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
-          </button>
-          
-          <button onClick={nextVideo} className={styles.controlButton}>
-            <i className="fas fa-step-forward"></i>
-          </button>
-          
-          <button onClick={toggleDualMode} className={styles.controlButton}>
-            <i className={`fas ${isDualMode ? 'fa-square' : 'fa-th-large'}`}></i>
-          </button>
-          
-          <button onClick={toggleTimer} className={styles.controlButton}>
-            <i className="fas fa-stopwatch"></i>
-          </button>
-          
-          <button onClick={toggleVideoSelection} className={styles.controlButton}>
-            <i className="fas fa-film"></i>
-          </button>
-          
-          <div className={styles.speedControl}>
-            <button 
-              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+          {/* Playback Controls Section */}
+          <div className={styles.controlSection}>
+            <button onClick={prevVideo} className={styles.controlButton}>
+              <i className="fas fa-step-backward"></i>
+            </button>
+
+            <button onClick={togglePlay} className={styles.controlButton}>
+              <i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
+            </button>
+
+            <button onClick={nextVideo} className={styles.controlButton}>
+              <i className="fas fa-step-forward"></i>
+            </button>
+          </div>
+
+          {/* View Controls Section */}
+          <div className={styles.controlSection}>
+            <button onClick={toggleDualMode} className={styles.controlButton}>
+              <i
+                className={`fas ${isDualMode ? 'fa-square' : 'fa-th-large'}`}
+              ></i>
+            </button>
+
+            <button
+              onClick={toggleVideoSelection}
               className={styles.controlButton}
             >
-              {playbackSpeed}x
+              <i className="fas fa-film"></i>
             </button>
-            
-            {showSpeedMenu && (
-              <div className={styles.speedMenu}>
-                {speedOptions.map(speed => (
-                  <button
-                    key={speed}
-                    onClick={() => changeSpeed(speed)}
-                    className={`${styles.speedOption} ${speed === playbackSpeed ? styles.active : ''}`}
-                  >
-                    {speed}x
-                  </button>
-                ))}
-              </div>
-            )}
+
+            <div className={styles.speedControl}>
+              <button
+                onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                className={styles.controlButton}
+              >
+                {playbackSpeed}x
+              </button>
+
+              {showSpeedMenu && (
+                <div className={styles.speedMenu}>
+                  {speedOptions.map(speed => (
+                    <button
+                      key={speed}
+                      onClick={() => changeSpeed(speed)}
+                      className={`${styles.speedOption} ${speed === playbackSpeed ? styles.active : ''}`}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          
-          <button onClick={toggleFullscreen} className={styles.controlButton}>
-            <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
-          </button>
+
+          {/* Timer Section */}
+          <div className={styles.timerSection}>
+            <button onClick={toggleTimer} className={styles.controlButton}>
+              <i className="fas fa-stopwatch"></i>
+            </button>
+          </div>
+
+          {/* Fullscreen Section */}
+          <div className={styles.controlSection}>
+            <button onClick={toggleFullscreen} className={styles.controlButton}>
+              <i
+                className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}
+              ></i>
+            </button>
+          </div>
         </div>
       </div>
-      
+
       <div className={styles.info}>
         <h3>{currentVideo.title}</h3>
         {isDualMode && <h4>{secondVideo.title}</h4>}
-        <p>{isDualMode ? 'Dual Mode' : `${currentIndex + 1} / ${videos.length}`}</p>
+        <p>
+          {isDualMode ? 'Dual Mode' : `${currentIndex + 1} / ${videos.length}`}
+        </p>
       </div>
-      
+
       {showTimer && (
         <div className={styles.timerOverlay}>
-          <button 
-            onClick={toggleTimer}
-            className={styles.closeButton}
-          >
+          <button onClick={toggleTimer} className={styles.closeButton}>
             <i className="fas fa-times"></i>
           </button>
           <div className={styles.timerContainer}>
             <div className={styles.timerDisplay}>
-              <button 
-                onClick={subtractTime} 
+              <button
+                onClick={subtractTime}
                 className={styles.timeAdjustButton}
                 disabled={timerActive}
               >
                 <i className="fas fa-minus"></i>
               </button>
               <span className={styles.timeNumber}>{timerSeconds}</span>
-              <button 
-                onClick={addTime} 
+              <button
+                onClick={addTime}
                 className={styles.timeAdjustButton}
                 disabled={timerActive}
               >
@@ -457,14 +507,11 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
               </button>
             </div>
             <div className={styles.timerControls}>
-              <button 
-                onClick={resetTimer} 
-                className={styles.timerButton}
-              >
+              <button onClick={resetTimer} className={styles.timerButton}>
                 Reset
               </button>
-              <button 
-                onClick={timerActive ? stopTimer : startTimer} 
+              <button
+                onClick={timerActive ? stopTimer : startTimer}
                 className={styles.timerButton}
               >
                 {timerActive ? 'Stop' : 'Start'}
@@ -473,27 +520,27 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
           </div>
         </div>
       )}
-      
+
       {showVideoSelection && (
         <div className={styles.videoSelectionOverlay}>
-          <button 
-            onClick={toggleVideoSelection}
-            className={styles.closeButton}
-          >
+          <button onClick={toggleVideoSelection} className={styles.closeButton}>
             <i className="fas fa-times"></i>
           </button>
           <div className={styles.videoSelectionContainer}>
             <h2 className={styles.selectionTitle}>Select Video</h2>
             <div className={styles.videoGrid}>
               {videos.map((video, index) => (
-                <div 
+                <div
                   key={video.id}
                   onClick={() => selectVideo(index)}
                   className={`${styles.videoCard} ${index === currentIndex ? styles.activeCard : ''}`}
                 >
                   <div className={styles.videoThumbnail}>
                     {video.poster || extractedThumbnails[video.src] ? (
-                      <img src={getThumbnail(video)} alt={video.title} />
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={getThumbnail(video)} alt={video.title} />
+                      </>
                     ) : (
                       <div className={styles.defaultThumbnail}>
                         <i className="fas fa-video"></i>
@@ -515,12 +562,14 @@ export default function VideoPlayer({ videos = [], currentIndex = 0, onVideoChan
           </div>
         </div>
       )}
-      
+
       {showTitleOverlay && (
         <div className={styles.titleOverlay}>
           <div className={styles.titleContainer}>
             <h1 className={styles.largeTitle}>{currentVideo.title}</h1>
-            <p className={styles.videoNumber}>{currentIndex + 1} / {videos.length}</p>
+            <p className={styles.videoNumber}>
+              {currentIndex + 1} / {videos.length}
+            </p>
           </div>
         </div>
       )}

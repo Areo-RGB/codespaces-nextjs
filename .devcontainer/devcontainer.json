@@ -11,9 +11,7 @@
   },
   "customizations": {
     "codespaces": {
-      "openFiles": [
-        "pages/index.js"
-      ]
+      "openFiles": ["pages/index.js"]
     }
   },
   "portsAttributes": {

@@ -82,8 +82,57 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 20px;
   flex-wrap: wrap;
+}
+
+.controlSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  position: relative;
+}
+
+.controlSection:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.timerSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  position: relative;
+  background: rgba(255, 105, 105, 0.1);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 105, 105, 0.3);
+}
+
+.timerSection::before,
+.timerSection::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 105, 105, 0.5);
+}
+
+.timerSection::before {
+  left: -10px;
+}
+
+.timerSection::after {
+  right: -10px;
 }
 
 .controlButton {
@@ -149,7 +198,6 @@
   display: none;
 }
 
-
 .fullscreen {
   position: fixed;
   top: 0;
@@ -173,28 +221,27 @@
     padding: 15px;
     opacity: 1;
   }
-  
+
   .controlButtons {
     gap: 8px;
   }
-  
+
   .controlButton {
     min-width: 40px;
     min-height: 40px;
     padding: 8px;
     font-size: 14px;
   }
-  
+
   .progressBar {
     height: 6px;
     margin-bottom: 12px;
   }
-  
+
   .timeDisplay {
     font-size: 11px;
   }
-  
-  
+
   .speedMenu {
     bottom: 50px;
   }
@@ -205,7 +252,7 @@
   .customControls {
     opacity: 1;
   }
-  
+
   .container:active .customControls {
     opacity: 1;
   }
@@ -216,26 +263,26 @@
   .customControls {
     padding: 12px;
   }
-  
+
   .controlButtons {
     gap: 6px;
   }
-  
+
   .controlButton {
     min-width: 36px;
     min-height: 36px;
     font-size: 12px;
   }
-  
+
   .progressBar {
     height: 8px;
   }
-  
+
   .dualMode .videoContainer {
     flex-direction: column;
     gap: 1px;
   }
-  
+
   .dualMode .video {
     width: 100%;
     height: 50%;
@@ -364,23 +411,22 @@
 
 /* Landscape mobile in dual mode */
 @media (max-width: 768px) and (orientation: landscape) {
-  
   .timeNumber {
     font-size: 80px;
     min-width: 150px;
   }
-  
+
   .timeAdjustButton {
     width: 50px;
     height: 50px;
     font-size: 24px;
   }
-  
+
   .timerDisplay {
     gap: 15px;
     margin-bottom: 20px;
   }
-  
+
   .timerButton {
     padding: 8px 16px;
     font-size: 14px;
@@ -393,27 +439,27 @@
     font-size: 100px;
     min-width: 180px;
   }
-  
+
   .timeAdjustButton {
     width: 45px;
     height: 45px;
     font-size: 22px;
   }
-  
+
   .timerDisplay {
     gap: 12px;
     margin-bottom: 25px;
   }
-  
+
   .timerControls {
     gap: 15px;
   }
-  
+
   .timerButton {
     padding: 10px 20px;
     font-size: 15px;
   }
-  
+
   .closeButton {
     top: 15px;
     right: 15px;
@@ -544,12 +590,12 @@
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 12px;
   }
-  
+
   .selectionTitle {
     font-size: 20px;
     margin-bottom: 15px;
   }
-  
+
   .videoSelectionContainer {
     padding: 15px;
   }
@@ -560,27 +606,27 @@
     grid-template-columns: 1fr;
     gap: 10px;
   }
-  
+
   .videoCard {
     border-radius: 8px;
   }
-  
+
   .videoThumbnail {
     height: 120px;
   }
-  
+
   .defaultThumbnail {
     font-size: 36px;
   }
-  
+
   .videoInfo {
     padding: 12px;
   }
-  
+
   .videoInfo h3 {
     font-size: 14px;
   }
-  
+
   .selectionTitle {
     font-size: 18px;
   }
@@ -624,14 +670,28 @@
 }
 
 @keyframes slideInOut {
-  0% { transform: translateY(20px); opacity: 0; }
-  15% { transform: translateY(0); opacity: 1; }
-  85% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(20px); opacity: 0; }
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  85% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
 }
 
 @keyframes fadeIn {
-  to { opacity: 0.9; }
+  to {
+    opacity: 0.9;
+  }
 }
 
 /* Mobile title overlay adjustments */
@@ -641,11 +701,11 @@
     left: 15px;
     right: 15px;
   }
-  
+
   .largeTitle {
     font-size: 24px;
   }
-  
+
   .videoNumber {
     font-size: 14px;
   }
@@ -657,11 +717,11 @@
     left: 12px;
     right: 12px;
   }
-  
+
   .largeTitle {
     font-size: 20px;
   }
-  
+
   .videoNumber {
     font-size: 13px;
   }

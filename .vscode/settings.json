@@ -1,0 +1,5 @@
+{
+  // Verhindert das automatische Öffnen von Dateien nach Änderungen durch Erweiterungen oder Agenten
+  "workbench.editor.enablePreview": true,
+  "workbench.editor.closeOnFileDelete": true
+}
